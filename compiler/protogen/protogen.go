@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"google.golang.org/protobuf/encoding/prototext"
+	"google.golang.org/protobuf/internal/filedesc"
 	"google.golang.org/protobuf/internal/genid"
 	"google.golang.org/protobuf/internal/strs"
 	"google.golang.org/protobuf/proto"
@@ -148,6 +149,21 @@ type Options struct {
 	// imported by a generated file. It returns the import path to use
 	// for this package.
 	ImportRewriteFunc func(GoImportPath) GoImportPath
+
+	// GoIdentRewriteFunc is called with the file and message descriptor for each
+	// message that needs a go identity. It returns the GoIdent to use.
+	// If this descriptor has a parent, that parent's ident is passed as well.
+	// If unset, NewGoIdent will be used.
+	GoIdentRewriteFunc func(f *File, parentIdent *GoIdent, d protoreflect.Descriptor) GoIdent
+
+	// GoNameRewriteFunc is called with the file and descriptor to determine the
+	// GoName for that descriptor.
+	// There are cases where the GoIdent and GoName differ, so this is provided
+	// as a separate option.
+	// Specifically, in the case of message fields, the GoName is usually "Foo",
+	// while the GoIdent is "MsgIdent_Foo".
+	// If unset, NewGoName will be used.
+	GoNameRewriteFunc func(d protoreflect.Descriptor) string
 }
 
 // New returns a new Plugin.
@@ -317,6 +333,22 @@ func (opts Options) New(req *pluginpb.CodeGeneratorRequest) (*Plugin, error) {
 		f.Generate = true
 	}
 	return gen, nil
+}
+
+// goIdent handles defaulting to NewGoIdent if GoIdentRewriteFunc is unset
+func (opts Options) goIdent(f *File, parentIdent *GoIdent, d protoreflect.Descriptor) GoIdent {
+	if opts.GoIdentRewriteFunc != nil {
+		return opts.GoIdentRewriteFunc(f, parentIdent, d)
+	}
+	return NewGoIdent(f, parentIdent, d)
+}
+
+// goName handles defaulting to NewGoName if GoNameRewriteFunc is unset
+func (opts Options) goName(d protoreflect.Descriptor) string {
+	if opts.GoNameRewriteFunc != nil {
+		return opts.GoNameRewriteFunc(d)
+	}
+	return NewGoName(d)
 }
 
 // Error records an error in code generation. The generator will report the
@@ -500,7 +532,7 @@ func newEnum(gen *Plugin, f *File, parent *Message, desc protoreflect.EnumDescri
 	}
 	enum := &Enum{
 		Desc:     desc,
-		GoIdent:  newGoIdent(f, desc),
+		GoIdent:  gen.opts.goIdent(f, nil, desc),
 		Location: loc,
 		Comments: makeCommentSet(f.Desc.SourceLocations().ByDescriptor(desc)),
 	}
@@ -524,19 +556,18 @@ type EnumValue struct {
 }
 
 func newEnumValue(gen *Plugin, f *File, message *Message, enum *Enum, desc protoreflect.EnumValueDescriptor) *EnumValue {
-	// A top-level enum value's name is: EnumName_ValueName
-	// An enum value contained in a message is: MessageName_ValueName
-	//
-	// For historical reasons, enum value names are not camel-cased.
-	parentIdent := enum.GoIdent
+	var ident GoIdent
+	// for historical reasons, the parent ident is considered the message or the
+	// enum we're in depending where this value is being used.
 	if message != nil {
-		parentIdent = message.GoIdent
+		ident = gen.opts.goIdent(f, &message.GoIdent, desc)
+	} else {
+		ident = gen.opts.goIdent(f, &enum.GoIdent, desc)
 	}
-	name := parentIdent.GoName + "_" + string(desc.Name())
 	loc := enum.Location.appendPath(genid.EnumDescriptorProto_Value_field_number, desc.Index())
 	return &EnumValue{
 		Desc:     desc,
-		GoIdent:  f.GoImportPath.Ident(name),
+		GoIdent:  ident,
 		Parent:   enum,
 		Location: loc,
 		Comments: makeCommentSet(f.Desc.SourceLocations().ByDescriptor(desc)),
@@ -569,7 +600,7 @@ func newMessage(gen *Plugin, f *File, parent *Message, desc protoreflect.Message
 	}
 	message := &Message{
 		Desc:     desc,
-		GoIdent:  newGoIdent(f, desc),
+		GoIdent:  gen.opts.goIdent(f, nil, desc),
 		Location: loc,
 		Comments: makeCommentSet(f.Desc.SourceLocations().ByDescriptor(desc)),
 	}
@@ -727,18 +758,15 @@ func newField(gen *Plugin, f *File, message *Message, desc protoreflect.FieldDes
 	default:
 		loc = message.Location.appendPath(genid.DescriptorProto_Field_field_number, desc.Index())
 	}
-	camelCased := strs.GoCamelCase(string(desc.Name()))
-	var parentPrefix string
+	goName := gen.opts.goName(desc)
+	var parentIdent *GoIdent
 	if message != nil {
-		parentPrefix = message.GoIdent.GoName + "_"
+		parentIdent = &message.GoIdent
 	}
 	field := &Field{
-		Desc:   desc,
-		GoName: camelCased,
-		GoIdent: GoIdent{
-			GoImportPath: f.GoImportPath,
-			GoName:       parentPrefix + camelCased,
-		},
+		Desc:     desc,
+		GoName:   goName,
+		GoIdent:  gen.opts.goIdent(f, parentIdent, desc),
 		Parent:   message,
 		Location: loc,
 		Comments: makeCommentSet(f.Desc.SourceLocations().ByDescriptor(desc)),
@@ -797,16 +825,11 @@ type Oneof struct {
 
 func newOneof(gen *Plugin, f *File, message *Message, desc protoreflect.OneofDescriptor) *Oneof {
 	loc := message.Location.appendPath(genid.DescriptorProto_OneofDecl_field_number, desc.Index())
-	camelCased := strs.GoCamelCase(string(desc.Name()))
-	parentPrefix := message.GoIdent.GoName + "_"
 	return &Oneof{
-		Desc:   desc,
-		Parent: message,
-		GoName: camelCased,
-		GoIdent: GoIdent{
-			GoImportPath: f.GoImportPath,
-			GoName:       parentPrefix + camelCased,
-		},
+		Desc:     desc,
+		Parent:   message,
+		GoName:   gen.opts.goName(desc),
+		GoIdent:  gen.opts.goIdent(f, &message.GoIdent, desc),
 		Location: loc,
 		Comments: makeCommentSet(f.Desc.SourceLocations().ByDescriptor(desc)),
 	}
@@ -1169,13 +1192,32 @@ type GoIdent struct {
 
 func (id GoIdent) String() string { return fmt.Sprintf("%q.%v", id.GoImportPath, id.GoName) }
 
-// newGoIdent returns the Go identifier for a descriptor.
-func newGoIdent(f *File, d protoreflect.Descriptor) GoIdent {
-	name := strings.TrimPrefix(string(d.FullName()), string(f.Desc.Package())+".")
-	return GoIdent{
-		GoName:       strs.GoCamelCase(name),
-		GoImportPath: f.GoImportPath,
+// NewGoNewGoIdent creates an identity for the given file+descriptor.
+// The GoImportPath for the file is used for the GoImportPath, and a
+// camelcase version of the descriptor name is used for the GoName.
+func NewGoIdent(f *File, parentIdent *GoIdent, d protoreflect.Descriptor) GoIdent {
+	var name string
+	switch d.(type) {
+	case protoreflect.EnumValueDescriptor:
+		// Enum naming differs from everything else
+		name = string(d.Name())
+	case *filedesc.Extension:
+		// Extensions are also named slightly differently
+		name = strs.GoCamelCase(string(d.Name()))
+	default:
+		name = strings.TrimPrefix(string(d.FullName()), string(f.Desc.Package())+".")
+		name = strs.GoCamelCase(name)
 	}
+	var parentPrefix string
+	if parentIdent != nil {
+		parentPrefix = parentIdent.GoName + "_"
+	}
+	return f.GoImportPath.Ident(parentPrefix + name)
+}
+
+// NewGoName returns the name for the given descriptor
+func NewGoName(d protoreflect.Descriptor) string {
+	return strs.GoCamelCase(string(d.Name()))
 }
 
 // A GoImportPath is the import path of a Go package.
