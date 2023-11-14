@@ -10,7 +10,6 @@ package sub
 import (
 	sub2 "google.golang.org/protobuf/cmd/protoc-gen-go/testdata/import_public/sub2"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoiface "google.golang.org/protobuf/runtime/protoiface"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	math "math"
 	reflect "reflect"
@@ -192,6 +191,7 @@ type M struct {
 	B  []byte   `protobuf:"bytes,5,opt,name=b,def=default" json:"b,omitempty"`
 	F  *float64 `protobuf:"fixed64,6,opt,name=f,def=nan" json:"f,omitempty"`
 	// Types that are assignable to OneofField:
+	//
 	//	*M_OneofInt32
 	//	*M_OneofInt64
 	OneofField isM_OneofField `protobuf_oneof:"oneof_field"`
@@ -238,15 +238,6 @@ func (x *M) ProtoReflect() protoreflect.Message {
 // Deprecated: Use M.ProtoReflect.Descriptor instead.
 func (*M) Descriptor() ([]byte, []int) {
 	return file_cmd_protoc_gen_go_testdata_import_public_sub_a_proto_rawDescGZIP(), []int{0}
-}
-
-var extRange_M = []protoiface.ExtensionRangeV1{
-	{Start: 100, End: 536870911},
-}
-
-// Deprecated: Use M.ProtoReflect.Descriptor.ExtensionRanges instead.
-func (*M) ExtensionRangeArray() []protoiface.ExtensionRangeV1 {
-	return extRange_M
 }
 
 func (x *M) GetM2() *M2 {
@@ -320,6 +311,7 @@ type M_Submessage struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to SubmessageOneofField:
+	//
 	//	*M_Submessage_SubmessageOneofInt32
 	//	*M_Submessage_SubmessageOneofInt64
 	SubmessageOneofField isM_Submessage_SubmessageOneofField `protobuf_oneof:"submessage_oneof_field"`

@@ -11,7 +11,6 @@ package order
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoiface "google.golang.org/protobuf/runtime/protoiface"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
@@ -26,6 +25,7 @@ type Message struct {
 	Field_2 *string `protobuf:"bytes,2,opt,name=field_2,json=field2" json:"field_2,omitempty"`
 	Field_1 *string `protobuf:"bytes,1,opt,name=field_1,json=field1" json:"field_1,omitempty"`
 	// Types that are assignable to Oneof_1:
+	//
 	//	*Message_Field_10
 	Oneof_1  isMessage_Oneof_1 `protobuf_oneof:"oneof_1"`
 	Field_20 *string           `protobuf:"bytes,20,opt,name=field_20,json=field20" json:"field_20,omitempty"`
@@ -61,15 +61,6 @@ func (x *Message) ProtoReflect() protoreflect.Message {
 // Deprecated: Use Message.ProtoReflect.Descriptor instead.
 func (*Message) Descriptor() ([]byte, []int) {
 	return file_internal_testprotos_order_order_proto_rawDescGZIP(), []int{0}
-}
-
-var extRange_Message = []protoiface.ExtensionRangeV1{
-	{Start: 30, End: 40},
-}
-
-// Deprecated: Use Message.ProtoReflect.Descriptor.ExtensionRanges instead.
-func (*Message) ExtensionRangeArray() []protoiface.ExtensionRangeV1 {
-	return extRange_Message
 }
 
 func (x *Message) GetField_2() string {
