@@ -686,7 +686,6 @@ type Oneofs struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to Union:
-	//
 	//	*Oneofs_OneofEnum
 	//	*Oneofs_OneofString
 	//	*Oneofs_OneofNested

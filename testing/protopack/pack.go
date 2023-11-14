@@ -7,7 +7,7 @@
 // This package is intended for use in debugging and/or creation of test data.
 // Proper usage of this package requires knowledge of the wire format.
 //
-// See https://protobuf.dev/programming-guides/encoding.
+// See https://developers.google.com/protocol-buffers/docs/encoding.
 package protopack
 
 import (
@@ -25,10 +25,10 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-// Number is the field number; aliased from the [protowire] package for convenience.
+// Number is the field number; aliased from the protowire package for convenience.
 type Number = protowire.Number
 
-// Number type constants; copied from the [protowire] package for convenience.
+// Number type constants; copied from the protowire package for convenience.
 const (
 	MinValidNumber      Number = protowire.MinValidNumber
 	FirstReservedNumber Number = protowire.FirstReservedNumber
@@ -36,10 +36,10 @@ const (
 	MaxValidNumber      Number = protowire.MaxValidNumber
 )
 
-// Type is the wire type; aliased from the [protowire] package for convenience.
+// Type is the wire type; aliased from the protowire package for convenience.
 type Type = protowire.Type
 
-// Wire type constants; copied from the [protowire] package for convenience.
+// Wire type constants; copied from the protowire package for convenience.
 const (
 	VarintType     Type = protowire.VarintType
 	Fixed32Type    Type = protowire.Fixed32Type
@@ -50,9 +50,9 @@ const (
 )
 
 type (
-	// Token is any other type (e.g., [Message], [Tag], [Varint], [Float32], etc).
+	// Token is any other type (e.g., Message, Tag, Varint, Float32, etc).
 	Token token
-	// Message is an ordered sequence of [Token] values, where certain tokens may
+	// Message is an ordered sequence of  Tokens, where certain tokens may
 	// contain other tokens. It is functionally a concrete syntax tree that
 	// losslessly represents any arbitrary wire data (including invalid input).
 	Message []Token
@@ -96,10 +96,10 @@ type (
 	// using more bytes than is strictly necessary. The number of extra bytes
 	// alone is sufficient to losslessly represent the denormalized varint.
 	//
-	// The value may be one of [Tag], [Bool], [Varint], [Svarint], or [Uvarint],
+	// The value may be one of Tag, Bool, Varint, Svarint, or Uvarint,
 	// where the varint representation of each token is denormalized.
 	//
-	// Alternatively, the value may be one of [String], [Bytes], or [LengthPrefix],
+	// Alternatively, the value may be one of String, Bytes, or LengthPrefix,
 	// where the varint representation of the length-prefix is denormalized.
 	Denormalized struct {
 		Count uint // number of extra bytes
@@ -173,7 +173,6 @@ func (m Message) Size() int {
 // Marshal encodes a syntax tree into the protobuf wire format.
 //
 // Example message definition:
-//
 //	message MyMessage {
 //		string field1 = 1;
 //		int64 field2 = 2;
@@ -181,7 +180,6 @@ func (m Message) Size() int {
 //	}
 //
 // Example encoded message:
-//
 //	b := Message{
 //		Tag{1, BytesType}, String("Hello, world!"),
 //		Tag{2, VarintType}, Varint(-10),
@@ -191,7 +189,6 @@ func (m Message) Size() int {
 //	}.Marshal()
 //
 // Resulting wire data:
-//
 //	0x0000  0a 0d 48 65 6c 6c 6f 2c  20 77 6f 72 6c 64 21 10  |..Hello, world!.|
 //	0x0010  f6 ff ff ff ff ff ff ff  ff 01 1a 0c cd cc 8c 3f  |...............?|
 //	0x0020  cd cc 0c 40 33 33 53 40                           |...@33S@|
@@ -249,23 +246,21 @@ func (m Message) Marshal() []byte {
 
 // Unmarshal parses the input protobuf wire data as a syntax tree.
 // Any parsing error results in the remainder of the input being
-// concatenated to the message as a [Raw] type.
+// concatenated to the message as a Raw type.
 //
 // Each tag (a tuple of the field number and wire type) encountered is
-// inserted into the syntax tree as a [Tag].
+// inserted into the syntax tree as a Tag.
 //
 // The contents of each wire type is mapped to the following Go types:
-//
-//   - [VarintType] ⇒ [Uvarint]
-//   - [Fixed32Type] ⇒ [Uint32]
-//   - [Fixed64Type] ⇒ [Uint64]
-//   - [BytesType] ⇒ [Bytes]
-//   - [StartGroupType] and [StartGroupType] ⇒ [Message]
+//	VarintType   => Uvarint
+//	Fixed32Type  => Uint32
+//	Fixed64Type  => Uint64
+//	BytesType    => Bytes
+//	GroupType    => Message
 //
 // Since the wire format is not self-describing, this function cannot parse
-// sub-messages and will leave them as the [Bytes] type. Further manual parsing
+// sub-messages and will leave them as the Bytes type. Further manual parsing
 // can be performed as such:
-//
 //	var m, m1, m2 Message
 //	m.Unmarshal(b)
 //	m1.Unmarshal(m[3].(Bytes))
@@ -275,60 +270,41 @@ func (m Message) Marshal() []byte {
 //
 // Unmarshal is useful for debugging the protobuf wire format.
 func (m *Message) Unmarshal(in []byte) {
-	m.unmarshal(in, nil, false)
+	m.UnmarshalDescriptor(in, nil)
 }
 
 // UnmarshalDescriptor parses the input protobuf wire data as a syntax tree
 // using the provided message descriptor for more accurate parsing of fields.
-// It operates like [Message.Unmarshal], but may use a wider range of Go types to
+// It operates like Unmarshal, but may use a wider range of Go types to
 // represent the wire data.
 //
 // The contents of each wire type is mapped to one of the following Go types:
+//	VarintType   => Bool, Varint, Svarint, Uvarint
+//	Fixed32Type  => Int32, Uint32, Float32
+//	Fixed64Type  => Uint32, Uint64, Float64
+//	BytesType    => String, Bytes, LengthPrefix
+//	GroupType    => Message
 //
-//   - [VarintType] ⇒ [Bool], [Varint], [Svarint], [Uvarint]
-//   - [Fixed32Type] ⇒ [Int32], [Uint32], [Float32]
-//   - [Fixed64Type] ⇒ [Uint32], [Uint64], [Float64]
-//   - [BytesType] ⇒ [String], [Bytes], [LengthPrefix]
-//   - [StartGroupType] and [StartGroupType] ⇒ [Message]
-//
-// If the field is unknown, it uses the same mapping as [Message.Unmarshal].
+// If the field is unknown, it uses the same mapping as Unmarshal.
 // Known sub-messages are parsed as a Message and packed repeated fields are
-// parsed as a [LengthPrefix].
+// parsed as a LengthPrefix.
 func (m *Message) UnmarshalDescriptor(in []byte, desc protoreflect.MessageDescriptor) {
-	m.unmarshal(in, desc, false)
-}
-
-// UnmarshalAbductive is like [Message.UnmarshalDescriptor], but infers abductively
-// whether any unknown bytes values is a message based on whether it is
-// a syntactically well-formed message.
-//
-// Note that the protobuf wire format is not fully self-describing,
-// so abductive inference may attempt to expand a bytes value as a message
-// that is not actually a message. It is a best-effort guess.
-func (m *Message) UnmarshalAbductive(in []byte, desc protoreflect.MessageDescriptor) {
-	m.unmarshal(in, desc, true)
-}
-
-func (m *Message) unmarshal(in []byte, desc protoreflect.MessageDescriptor, inferMessage bool) {
 	p := parser{in: in, out: *m}
-	p.parseMessage(desc, false, inferMessage)
+	p.parseMessage(desc, false)
 	*m = p.out
 }
 
 type parser struct {
 	in  []byte
 	out []Token
-
-	invalid bool
 }
 
-func (p *parser) parseMessage(msgDesc protoreflect.MessageDescriptor, group, inferMessage bool) {
+func (p *parser) parseMessage(msgDesc protoreflect.MessageDescriptor, group bool) {
 	for len(p.in) > 0 {
 		v, n := protowire.ConsumeVarint(p.in)
 		num, typ := protowire.DecodeTag(v)
-		if n < 0 || num <= 0 || v > math.MaxUint32 {
+		if n < 0 || num < 0 || v > math.MaxUint32 {
 			p.out, p.in = append(p.out, Raw(p.in)), nil
-			p.invalid = true
 			return
 		}
 		if typ == EndGroupType && group {
@@ -365,14 +341,13 @@ func (p *parser) parseMessage(msgDesc protoreflect.MessageDescriptor, group, inf
 		case Fixed64Type:
 			p.parseFixed64(kind)
 		case BytesType:
-			p.parseBytes(isPacked, kind, subDesc, inferMessage)
+			p.parseBytes(isPacked, kind, subDesc)
 		case StartGroupType:
-			p.parseGroup(num, subDesc, inferMessage)
+			p.parseGroup(subDesc)
 		case EndGroupType:
-			// Handled by p.parseGroup.
+			// Handled above.
 		default:
 			p.out, p.in = append(p.out, Raw(p.in)), nil
-			p.invalid = true
 		}
 	}
 }
@@ -381,7 +356,6 @@ func (p *parser) parseVarint(kind protoreflect.Kind) {
 	v, n := protowire.ConsumeVarint(p.in)
 	if n < 0 {
 		p.out, p.in = append(p.out, Raw(p.in)), nil
-		p.invalid = true
 		return
 	}
 	switch kind {
@@ -410,7 +384,6 @@ func (p *parser) parseFixed32(kind protoreflect.Kind) {
 	v, n := protowire.ConsumeFixed32(p.in)
 	if n < 0 {
 		p.out, p.in = append(p.out, Raw(p.in)), nil
-		p.invalid = true
 		return
 	}
 	switch kind {
@@ -427,7 +400,6 @@ func (p *parser) parseFixed64(kind protoreflect.Kind) {
 	v, n := protowire.ConsumeFixed64(p.in)
 	if n < 0 {
 		p.out, p.in = append(p.out, Raw(p.in)), nil
-		p.invalid = true
 		return
 	}
 	switch kind {
@@ -440,11 +412,10 @@ func (p *parser) parseFixed64(kind protoreflect.Kind) {
 	}
 }
 
-func (p *parser) parseBytes(isPacked bool, kind protoreflect.Kind, desc protoreflect.MessageDescriptor, inferMessage bool) {
+func (p *parser) parseBytes(isPacked bool, kind protoreflect.Kind, desc protoreflect.MessageDescriptor) {
 	v, n := protowire.ConsumeVarint(p.in)
 	if n < 0 {
 		p.out, p.in = append(p.out, Raw(p.in)), nil
-		p.invalid = true
 		return
 	}
 	p.out, p.in = append(p.out, Uvarint(v)), p.in[n:]
@@ -453,7 +424,6 @@ func (p *parser) parseBytes(isPacked bool, kind protoreflect.Kind, desc protoref
 	}
 	if v > uint64(len(p.in)) {
 		p.out, p.in = append(p.out, Raw(p.in)), nil
-		p.invalid = true
 		return
 	}
 	p.out = p.out[:len(p.out)-1] // subsequent tokens contain prefix-length
@@ -464,22 +434,11 @@ func (p *parser) parseBytes(isPacked bool, kind protoreflect.Kind, desc protoref
 		switch kind {
 		case protoreflect.MessageKind:
 			p2 := parser{in: p.in[:v]}
-			p2.parseMessage(desc, false, inferMessage)
+			p2.parseMessage(desc, false)
 			p.out, p.in = append(p.out, LengthPrefix(p2.out)), p.in[v:]
 		case protoreflect.StringKind:
 			p.out, p.in = append(p.out, String(p.in[:v])), p.in[v:]
-		case protoreflect.BytesKind:
-			p.out, p.in = append(p.out, Bytes(p.in[:v])), p.in[v:]
 		default:
-			if inferMessage {
-				// Check whether this is a syntactically valid message.
-				p2 := parser{in: p.in[:v]}
-				p2.parseMessage(nil, false, inferMessage)
-				if !p2.invalid {
-					p.out, p.in = append(p.out, LengthPrefix(p2.out)), p.in[v:]
-					break
-				}
-			}
 			p.out, p.in = append(p.out, Bytes(p.in[:v])), p.in[v:]
 		}
 	}
@@ -507,9 +466,9 @@ func (p *parser) parsePacked(n int, kind protoreflect.Kind) {
 	p.out, p.in = append(p.out, LengthPrefix(p2.out)), p.in[n:]
 }
 
-func (p *parser) parseGroup(startNum protowire.Number, desc protoreflect.MessageDescriptor, inferMessage bool) {
+func (p *parser) parseGroup(desc protoreflect.MessageDescriptor) {
 	p2 := parser{in: p.in}
-	p2.parseMessage(desc, true, inferMessage)
+	p2.parseMessage(desc, true)
 	if len(p2.out) > 0 {
 		p.out = append(p.out, Message(p2.out))
 	}
@@ -517,11 +476,8 @@ func (p *parser) parseGroup(startNum protowire.Number, desc protoreflect.Message
 
 	// Append the trailing end group.
 	v, n := protowire.ConsumeVarint(p.in)
-	if endNum, typ := protowire.DecodeTag(v); typ == EndGroupType {
-		if startNum != endNum {
-			p.invalid = true
-		}
-		p.out, p.in = append(p.out, Tag{endNum, typ}), p.in[n:]
+	if num, typ := protowire.DecodeTag(v); typ == EndGroupType {
+		p.out, p.in = append(p.out, Tag{num, typ}), p.in[n:]
 		if m := n - protowire.SizeVarint(v); m > 0 {
 			p.out[len(p.out)-1] = Denormalized{uint(m), p.out[len(p.out)-1]}
 		}

@@ -106,7 +106,7 @@ func (x *Public) GetE() sub.E {
 	if x != nil && x.E != nil {
 		return *x.E
 	}
-	return sub.E(0)
+	return sub.E_ZERO
 }
 
 func (x *Public) GetLocal() *Local {

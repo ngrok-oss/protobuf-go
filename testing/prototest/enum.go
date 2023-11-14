@@ -7,13 +7,13 @@ package prototest
 import (
 	"testing"
 
-	"google.golang.org/protobuf/reflect/protoreflect"
+	pref "google.golang.org/protobuf/reflect/protoreflect"
 )
 
-// Enum tests an [protoreflect.EnumType] implementation.
+// Enum tests an EnumType implementation.
 type Enum struct{}
 
-func (test Enum) Test(t testing.TB, et protoreflect.EnumType) {
+func (test Enum) Test(t testing.TB, et pref.EnumType) {
 	ed := et.Descriptor()
 	values := ed.Values()
 	for i := 0; i < values.Len(); i++ {

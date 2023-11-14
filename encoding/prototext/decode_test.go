@@ -12,7 +12,7 @@ import (
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/internal/flags"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protoregistry"
+	preg "google.golang.org/protobuf/reflect/protoregistry"
 
 	testpb "google.golang.org/protobuf/internal/testprotos/test"
 	weakpb "google.golang.org/protobuf/internal/testprotos/test/weak1"
@@ -127,9 +127,9 @@ opt_int64: 3735928559
 opt_uint32: 0xff
 opt_uint64: 0xdeadbeef
 opt_sint32: -1001
-opt_sint64: -   0xffff
+opt_sint64: -0xffff
 opt_fixed64: 64
-opt_sfixed32: -		32
+opt_sfixed32: -32
 opt_float: 1.234
 opt_double: 1.23e+100
 opt_bytes: "\xe8\xb0\xb7\xe6\xad\x8c"
@@ -164,8 +164,7 @@ s_int64: 3735928559
 s_uint32: 0xff
 s_uint64: 0xdeadbeef
 s_sint32: -1001
-s_sint64: -  #
-             0xffff
+s_sint64: -0xffff
 s_fixed64: 64
 s_sfixed32: -32
 s_float: 1.234
@@ -226,22 +225,6 @@ s_string: "谷歌"
 		inputMessage: &pb2.Scalars{},
 		inputText:    `13:"hello"`,
 		wantErr:      "cannot specify field by number",
-	}, {
-		desc:         "unknown list field",
-		umo:          prototext.UnmarshalOptions{DiscardUnknown: true},
-		inputMessage: &pb2.Scalars{},
-		inputText:    `unknown_field: { strings: [ "" ] }`,
-	}, {
-		desc:         "unknown list of list field",
-		umo:          prototext.UnmarshalOptions{DiscardUnknown: true},
-		inputMessage: &pb2.Scalars{},
-		inputText:    `unknown_field: { strings: [ [ ] ] }`,
-		wantErr:      `(line 1:29): invalid scalar value: [`,
-	}, {
-		desc:         "unknown list of message field",
-		umo:          prototext.UnmarshalOptions{DiscardUnknown: true},
-		inputMessage: &pb2.Scalars{},
-		inputText:    `unknown_field: [ { a: "b" }, { c: "d" } ]`,
 	}, {
 		desc:         "proto3 message cannot parse field number",
 		umo:          prototext.UnmarshalOptions{DiscardUnknown: true},
@@ -313,11 +296,6 @@ s_string: "谷歌"
 		inputMessage: &pb3.Scalars{},
 		inputText:    "s_sfixed64: bad",
 		wantErr:      "invalid value for sfixed64",
-	}, {
-		desc:         "incomplete number value",
-		inputMessage: &pb3.Scalars{},
-		inputText:    `s_int32: - `,
-		wantErr:      "(line 1:10): invalid scalar value: -",
 	}, {
 		desc:         "conformance: FloatFieldMaxValue",
 		inputMessage: &pb2.Scalars{},
@@ -1641,7 +1619,7 @@ value: "some bytes"
 		wantErr: "contains invalid UTF-8",
 	}, {
 		desc:         "Any expanded with unregistered type",
-		umo:          prototext.UnmarshalOptions{Resolver: new(protoregistry.Types)},
+		umo:          prototext.UnmarshalOptions{Resolver: new(preg.Types)},
 		inputMessage: &anypb.Any{},
 		inputText:    `[SomeMessage]: {}`,
 		wantErr:      "unable to resolve message [SomeMessage]",

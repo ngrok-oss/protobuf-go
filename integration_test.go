@@ -2,14 +2,12 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build ignore
 // +build ignore
 
 package main
 
 import (
 	"archive/tar"
-	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
@@ -35,26 +33,17 @@ var (
 	regenerate   = flag.Bool("regenerate", false, "regenerate files")
 	buildRelease = flag.Bool("buildRelease", false, "build release binaries")
 
-	protobufVersion = "25.0-rc2"
+	protobufVersion = "3.15.3"
+	protobufSHA256  = "" // ignored if protobufVersion is a git hash
 
-	golangVersions = func() []string {
-		// Version policy: same version as is in the x/ repos' go.mod.
-		return []string{
-			"1.17.13",
-			"1.18.10",
-			"1.19.13",
-			"1.20.7",
-			"1.21.1",
-		}
-	}()
-	golangLatest = golangVersions[len(golangVersions)-1]
+	golangVersions = []string{"1.9.7", "1.10.8", "1.11.13", "1.12.17", "1.13.15", "1.14.15", "1.15.9", "1.16.1"}
+	golangLatest   = golangVersions[len(golangVersions)-1]
 
-	staticcheckVersion = "2023.1.6"
+	staticcheckVersion = "2020.1.4"
 	staticcheckSHA256s = map[string]string{
-		"darwin/amd64": "b14a0cbd3c238713f5f9db41550893ea7d75d8d7822491c7f4e33e2fe43f6305",
-		"darwin/arm64": "f1c869abe6be2c6ab727dc9d6049766c947534766d71a1798c12a37526ea2b6f",
-		"linux/386":    "02859a7c44c7b5ab41a70d9b8107c01ab8d2c94075bae3d0b02157aff743ca42",
-		"linux/amd64":  "45337834da5dc7b8eff01cb6b3837e3759503cfbb8edf36b09e42f32bccb1f6e",
+		"darwin/amd64": "5706d101426c025e8f165309e0cb2932e54809eb035ff23ebe19df0f810699d8",
+		"linux/386":    "e4dbf94e940678ae7108f0d22c7c2992339bc10a8fb384e7e734b1531a429a1c",
+		"linux/amd64":  "09d2c2002236296de2c757df111fe3ae858b89f9e183f645ad01f8135c83c519",
 	}
 
 	// purgeTimeout determines the maximum age of unused sub-directories.
@@ -133,7 +122,7 @@ func Test(t *testing.T) {
 			runGo("ProtocGenGo", command{Dir: "cmd/protoc-gen-go/testdata"}, "go", "test")
 			runGo("Conformance", command{Dir: "internal/conformance"}, "go", "test", "-execute")
 
-			// Only run the 32-bit compatibility tests for Linux;
+			// Only run the 32-bit compatability tests for Linux;
 			// avoid Darwin since 10.15 dropped support i386 code execution.
 			if runtime.GOOS == "linux" {
 				runGo("Arch32Bit", command{Dir: workDir, Env: append(os.Environ(), "GOARCH=386")}, "go", "test", "./...")
@@ -146,7 +135,7 @@ func Test(t *testing.T) {
 		checks := []string{
 			"all",     // start with all checks enabled
 			"-SA1019", // disable deprecated usage check
-			"-S*",     // disable code simplification checks
+			"-S*",     // disable code simplication checks
 			"-ST*",    // disable coding style checks
 			"-U*",     // disable unused declaration checks
 		}
@@ -244,28 +233,23 @@ func mustInitDeps(t *testing.T) {
 	protobufPath = startWork("protobuf-" + protobufVersion)
 	if _, err := os.Stat(protobufPath); err != nil {
 		fmt.Printf("download %v\n", filepath.Base(protobufPath))
-		checkoutVersion := protobufVersion
-		if isCommit := strings.Trim(protobufVersion, "0123456789abcdef") == ""; !isCommit {
-			// release tags have "v" prefix
-			checkoutVersion = "v" + protobufVersion
+		if isCommit := strings.Trim(protobufVersion, "0123456789abcdef") == ""; isCommit {
+			command{Dir: testDir}.mustRun(t, "git", "clone", "https://github.com/protocolbuffers/protobuf", "protobuf-"+protobufVersion)
+			command{Dir: protobufPath}.mustRun(t, "git", "checkout", protobufVersion)
+		} else {
+			url := fmt.Sprintf("https://github.com/google/protobuf/releases/download/v%v/protobuf-all-%v.tar.gz", protobufVersion, protobufVersion)
+			downloadArchive(check, protobufPath, url, "protobuf-"+protobufVersion, protobufSHA256)
 		}
-		command{Dir: testDir}.mustRun(t, "git", "clone", "https://github.com/protocolbuffers/protobuf", "protobuf-"+protobufVersion)
-		command{Dir: protobufPath}.mustRun(t, "git", "checkout", checkoutVersion)
 
 		fmt.Printf("build %v\n", filepath.Base(protobufPath))
-		env := os.Environ()
-		if runtime.GOOS == "darwin" {
-			// Adding this environment variable appears to be necessary for macOS builds.
-			env = append(env, "CC=clang")
-		}
-		command{
-			Dir: protobufPath,
-			Env: env,
-		}.mustRun(t, "bazel", "build", ":protoc", "//conformance:conformance_test_runner")
+		command{Dir: protobufPath}.mustRun(t, "./autogen.sh")
+		command{Dir: protobufPath}.mustRun(t, "./configure")
+		command{Dir: protobufPath}.mustRun(t, "make")
+		command{Dir: filepath.Join(protobufPath, "conformance")}.mustRun(t, "make")
 	}
 	check(os.Setenv("PROTOBUF_ROOT", protobufPath)) // for generate-protos
-	registerBinary("conform-test-runner", filepath.Join(protobufPath, "bazel-bin", "conformance", "conformance_test_runner"))
-	registerBinary("protoc", filepath.Join(protobufPath, "bazel-bin", "protoc"))
+	registerBinary("conform-test-runner", filepath.Join(protobufPath, "conformance", "conformance-test-runner"))
+	registerBinary("protoc", filepath.Join(protobufPath, "src", "protoc"))
 	finishWork()
 
 	// Download each Go toolchain version.
@@ -390,7 +374,7 @@ func mustHandleFlags(t *testing.T) {
 		t.Run("BuildRelease", func(t *testing.T) {
 			v := version.String()
 			for _, goos := range []string{"linux", "darwin", "windows"} {
-				for _, goarch := range []string{"386", "amd64", "arm64"} {
+				for _, goarch := range []string{"386", "amd64"} {
 					// Avoid Darwin since 10.15 dropped support for i386.
 					if goos == "darwin" && goarch == "386" {
 						continue
@@ -408,31 +392,18 @@ func mustHandleFlags(t *testing.T) {
 						t.Fatal(err)
 					}
 					out := new(bytes.Buffer)
-					suffix := ""
-					comment := fmt.Sprintf("protoc-gen-go VERSION=%v GOOS=%v GOARCH=%v", v, goos, goarch)
-					switch goos {
-					case "windows":
-						suffix = ".zip"
-						zw := zip.NewWriter(out)
-						zw.SetComment(comment)
-						fw, _ := zw.Create("protoc-gen-go.exe")
-						fw.Write(in)
-						zw.Close()
-					default:
-						suffix = ".tar.gz"
-						gz, _ := gzip.NewWriterLevel(out, gzip.BestCompression)
-						gz.Comment = comment
-						tw := tar.NewWriter(gz)
-						tw.WriteHeader(&tar.Header{
-							Name: "protoc-gen-go",
-							Mode: int64(0775),
-							Size: int64(len(in)),
-						})
-						tw.Write(in)
-						tw.Close()
-						gz.Close()
-					}
-					if err := ioutil.WriteFile(binPath+suffix, out.Bytes(), 0664); err != nil {
+					gz, _ := gzip.NewWriterLevel(out, gzip.BestCompression)
+					gz.Comment = fmt.Sprintf("protoc-gen-go VERSION=%v GOOS=%v GOARCH=%v", v, goos, goarch)
+					tw := tar.NewWriter(gz)
+					tw.WriteHeader(&tar.Header{
+						Name: "protoc-gen-go",
+						Mode: int64(0775),
+						Size: int64(len(in)),
+					})
+					tw.Write(in)
+					tw.Close()
+					gz.Close()
+					if err := ioutil.WriteFile(binPath+".tar.gz", out.Bytes(), 0664); err != nil {
 						t.Fatal(err)
 					}
 				}

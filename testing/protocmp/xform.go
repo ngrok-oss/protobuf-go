@@ -3,11 +3,11 @@
 // license that can be found in the LICENSE file.
 
 // Package protocmp provides protobuf specific options for the
-// [github.com/google/go-cmp/cmp] package.
+// "github.com/google/go-cmp/cmp" package.
 //
-// The primary feature is the [Transform] option, which transform [proto.Message]
-// types into a [Message] map that is suitable for cmp to introspect upon.
-// All other options in this package must be used in conjunction with [Transform].
+// The primary feature is the Transform option, which transform proto.Message
+// types into a Message map that is suitable for cmp to introspect upon.
+// All other options in this package must be used in conjunction with Transform.
 package protocmp
 
 import (
@@ -33,7 +33,7 @@ var (
 )
 
 // Enum is a dynamic representation of a protocol buffer enum that is
-// suitable for [cmp.Equal] and [cmp.Diff] to compare upon.
+// suitable for cmp.Equal and cmp.Diff to compare upon.
 type Enum struct {
 	num protoreflect.EnumNumber
 	ed  protoreflect.EnumDescriptor
@@ -68,41 +68,33 @@ func (e Enum) String() string {
 }
 
 const (
-	// messageTypeKey indicates the protobuf message type.
-	// The value type is always messageMeta.
-	// From the public API, it presents itself as only the type, but the
-	// underlying data structure holds arbitrary metadata about the message.
-	messageTypeKey = "@type"
-
-	// messageInvalidKey indicates that the message is invalid.
-	// The value is always the boolean "true".
+	messageTypeKey    = "@type"
 	messageInvalidKey = "@invalid"
 )
 
-type messageMeta struct {
-	m   proto.Message
+type messageType struct {
 	md  protoreflect.MessageDescriptor
 	xds map[string]protoreflect.ExtensionDescriptor
 }
 
-func (t messageMeta) String() string {
+func (t messageType) String() string {
 	return string(t.md.FullName())
 }
 
-func (t1 messageMeta) Equal(t2 messageMeta) bool {
+func (t1 messageType) Equal(t2 messageType) bool {
 	return t1.md.FullName() == t2.md.FullName()
 }
 
 // Message is a dynamic representation of a protocol buffer message that is
-// suitable for [cmp.Equal] and [cmp.Diff] to directly operate upon.
+// suitable for cmp.Equal and cmp.Diff to directly operate upon.
 //
 // Every populated known field (excluding extension fields) is stored in the map
 // with the key being the short name of the field (e.g., "field_name") and
 // the value determined by the kind and cardinality of the field.
 //
-// Singular scalars are represented by the same Go type as [protoreflect.Value],
-// singular messages are represented by the [Message] type,
-// singular enums are represented by the [Enum] type,
+// Singular scalars are represented by the same Go type as protoreflect.Value,
+// singular messages are represented by the Message type,
+// singular enums are represented by the Enum type,
 // list fields are represented as a Go slice, and
 // map fields are represented as a Go map.
 //
@@ -112,27 +104,20 @@ func (t1 messageMeta) Equal(t2 messageMeta) bool {
 //
 // Every unknown field is stored in the map with the key being the field number
 // encoded as a decimal string (e.g., "132") and the value being the raw bytes
-// of the encoded field (as the [protoreflect.RawFields] type).
+// of the encoded field (as the protoreflect.RawFields type).
 //
 // Message values must not be created by or mutated by users.
 type Message map[string]interface{}
 
-// Unwrap returns the original message value.
-// It returns nil if this Message was not constructed from another message.
-func (m Message) Unwrap() proto.Message {
-	mm, _ := m[messageTypeKey].(messageMeta)
-	return mm.m
-}
-
 // Descriptor return the message descriptor.
 // It returns nil for a zero Message value.
 func (m Message) Descriptor() protoreflect.MessageDescriptor {
-	mm, _ := m[messageTypeKey].(messageMeta)
-	return mm.md
+	mt, _ := m[messageTypeKey].(messageType)
+	return mt.md
 }
 
 // ProtoReflect returns a reflective view of m.
-// It only implements the read-only operations of [protoreflect.Message].
+// It only implements the read-only operations of protoreflect.Message.
 // Calling any mutating operations on m panics.
 func (m Message) ProtoReflect() protoreflect.Message {
 	return (reflectMessage)(m)
@@ -162,11 +147,11 @@ func (m Message) String() string {
 
 type option struct{}
 
-// Transform returns a [cmp.Option] that converts each [proto.Message] to a [Message].
+// Transform returns a cmp.Option that converts each proto.Message to a Message.
 // The transformation does not mutate nor alias any converted messages.
 //
 // The google.protobuf.Any message is automatically unmarshaled such that the
-// "value" field is a [Message] representing the underlying message value
+// "value" field is a Message representing the underlying message value
 // assuming it could be resolved and properly unmarshaled.
 //
 // This does not directly transform higher-order composite Go types.
@@ -216,7 +201,7 @@ func Transform(...option) cmp.Option {
 		case m == nil:
 			return nil
 		case !m.IsValid():
-			return Message{messageTypeKey: messageMeta{m: m.Interface(), md: m.Descriptor()}, messageInvalidKey: true}
+			return Message{messageTypeKey: messageType{md: m.Descriptor()}, messageInvalidKey: true}
 		default:
 			return transformMessage(m)
 		}
@@ -224,7 +209,7 @@ func Transform(...option) cmp.Option {
 }
 
 func isMessageType(t reflect.Type) bool {
-	// Avoid transforming the Message itself.
+	// Avoid tranforming the Message itself.
 	if t == reflect.TypeOf(Message(nil)) || t == reflect.TypeOf((*Message)(nil)) {
 		return false
 	}
@@ -233,7 +218,7 @@ func isMessageType(t reflect.Type) bool {
 
 func transformMessage(m protoreflect.Message) Message {
 	mx := Message{}
-	mt := messageMeta{m: m.Interface(), md: m.Descriptor(), xds: make(map[string]protoreflect.FieldDescriptor)}
+	mt := messageType{md: m.Descriptor(), xds: make(map[string]protoreflect.FieldDescriptor)}
 
 	// Handle known and extension fields.
 	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {

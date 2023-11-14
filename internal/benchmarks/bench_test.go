@@ -18,8 +18,8 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protoreflect"
-	"google.golang.org/protobuf/reflect/protoregistry"
+	pref "google.golang.org/protobuf/reflect/protoreflect"
+	preg "google.golang.org/protobuf/reflect/protoregistry"
 
 	benchpb "google.golang.org/protobuf/internal/testprotos/benchmarks"
 	_ "google.golang.org/protobuf/internal/testprotos/benchmarks/datasets/google_message1/proto2"
@@ -127,7 +127,7 @@ func bench(b *testing.B, name string, f func(dataset, *testing.PB)) {
 
 type dataset struct {
 	name        string
-	messageType protoreflect.MessageType
+	messageType pref.MessageType
 	messages    []proto.Message
 	wire        [][]byte
 	text        [][]byte
@@ -183,7 +183,7 @@ func TestMain(m *testing.M) {
 		if err := proto.Unmarshal(raw, dspb); err != nil {
 			panic(err)
 		}
-		mt, err := protoregistry.GlobalTypes.FindMessageByName(protoreflect.FullName(dspb.MessageName))
+		mt, err := preg.GlobalTypes.FindMessageByName(pref.FullName(dspb.MessageName))
 		if err != nil {
 			panic(err)
 		}

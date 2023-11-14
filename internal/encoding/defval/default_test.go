@@ -10,71 +10,71 @@ import (
 	"testing"
 
 	"google.golang.org/protobuf/internal/encoding/defval"
-	"google.golang.org/protobuf/internal/filedesc"
-	"google.golang.org/protobuf/reflect/protoreflect"
+	fdesc "google.golang.org/protobuf/internal/filedesc"
+	pref "google.golang.org/protobuf/reflect/protoreflect"
 )
 
 func Test(t *testing.T) {
-	evs := filedesc.EnumValues{List: []filedesc.EnumValue{{}}}
-	evs.List[0].L0.ParentFile = filedesc.SurrogateProto2
+	evs := fdesc.EnumValues{List: []fdesc.EnumValue{{}}}
+	evs.List[0].L0.ParentFile = fdesc.SurrogateProto2
 	evs.List[0].L0.FullName = "ALPHA"
 	evs.List[0].L1.Number = 1
 
-	V := protoreflect.ValueOf
+	V := pref.ValueOf
 	tests := []struct {
-		val   protoreflect.Value
-		enum  protoreflect.EnumValueDescriptor
-		enums protoreflect.EnumValueDescriptors
-		kind  protoreflect.Kind
+		val   pref.Value
+		enum  pref.EnumValueDescriptor
+		enums pref.EnumValueDescriptors
+		kind  pref.Kind
 		strPB string
 		strGo string
 	}{{
 		val:   V(bool(true)),
 		enum:  nil,
 		enums: nil,
-		kind:  protoreflect.BoolKind,
+		kind:  pref.BoolKind,
 		strPB: "true",
 		strGo: "1",
 	}, {
 		val:   V(int32(-0x1234)),
 		enum:  nil,
 		enums: nil,
-		kind:  protoreflect.Int32Kind,
+		kind:  pref.Int32Kind,
 		strPB: "-4660",
 		strGo: "-4660",
 	}, {
 		val:   V(float32(math.Pi)),
 		enum:  nil,
 		enums: nil,
-		kind:  protoreflect.FloatKind,
+		kind:  pref.FloatKind,
 		strPB: "3.1415927",
 		strGo: "3.1415927",
 	}, {
 		val:   V(float64(math.Pi)),
 		enum:  nil,
 		enums: nil,
-		kind:  protoreflect.DoubleKind,
+		kind:  pref.DoubleKind,
 		strPB: "3.141592653589793",
 		strGo: "3.141592653589793",
 	}, {
 		val:   V(string("hello, \xde\xad\xbe\xef\n")),
 		enum:  nil,
 		enums: nil,
-		kind:  protoreflect.StringKind,
+		kind:  pref.StringKind,
 		strPB: "hello, \xde\xad\xbe\xef\n",
 		strGo: "hello, \xde\xad\xbe\xef\n",
 	}, {
 		val:   V([]byte("hello, \xde\xad\xbe\xef\n")),
 		enum:  nil,
 		enums: nil,
-		kind:  protoreflect.BytesKind,
+		kind:  pref.BytesKind,
 		strPB: "hello, \\336\\255\\276\\357\\n",
 		strGo: "hello, \\336\\255\\276\\357\\n",
 	}, {
-		val:   V(protoreflect.EnumNumber(1)),
+		val:   V(pref.EnumNumber(1)),
 		enum:  &evs.List[0],
 		enums: &evs,
-		kind:  protoreflect.EnumKind,
+		kind:  pref.EnumKind,
 		strPB: "ALPHA",
 		strGo: "1",
 	}}

@@ -15,7 +15,6 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
 
-	"google.golang.org/protobuf/internal/filedesc"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
@@ -1179,14 +1178,5 @@ func TestSourceLocations(t *testing.T) {
 	})
 	if numDescs != 30 {
 		t.Errorf("visited %d descriptor, expected 30", numDescs)
-	}
-}
-
-func TestToFileDescriptorProtoPlaceHolder(t *testing.T) {
-	// Make sure placeholders produce valid protos.
-	fileDescriptor := ToFileDescriptorProto(filedesc.PlaceholderFile("foo/test.proto"))
-	_, err := NewFile(fileDescriptor, &protoregistry.Files{} /* empty files since placeholder has no deps */)
-	if err != nil {
-		t.Errorf("placeholder file descriptor proto is not valid: %s", err)
 	}
 }

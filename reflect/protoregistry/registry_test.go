@@ -14,20 +14,20 @@ import (
 
 	"google.golang.org/protobuf/encoding/prototext"
 	pimpl "google.golang.org/protobuf/internal/impl"
-	"google.golang.org/protobuf/reflect/protodesc"
-	"google.golang.org/protobuf/reflect/protoreflect"
-	"google.golang.org/protobuf/reflect/protoregistry"
+	pdesc "google.golang.org/protobuf/reflect/protodesc"
+	pref "google.golang.org/protobuf/reflect/protoreflect"
+	preg "google.golang.org/protobuf/reflect/protoregistry"
 
 	testpb "google.golang.org/protobuf/internal/testprotos/registry"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
-func mustMakeFile(s string) protoreflect.FileDescriptor {
+func mustMakeFile(s string) pref.FileDescriptor {
 	pb := new(descriptorpb.FileDescriptorProto)
 	if err := prototext.Unmarshal([]byte(s), pb); err != nil {
 		panic(err)
 	}
-	fd, err := protodesc.NewFile(pb, nil)
+	fd, err := pdesc.NewFile(pb, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -38,24 +38,23 @@ func TestFiles(t *testing.T) {
 	type (
 		file struct {
 			Path string
-			Pkg  protoreflect.FullName
+			Pkg  pref.FullName
 		}
 		testFile struct {
-			inFile  protoreflect.FileDescriptor
+			inFile  pref.FileDescriptor
 			wantErr string
 		}
 		testFindDesc struct {
-			inName    protoreflect.FullName
+			inName    pref.FullName
 			wantFound bool
 		}
 		testRangePkg struct {
-			inPkg     protoreflect.FullName
+			inPkg     pref.FullName
 			wantFiles []file
 		}
 		testFindPath struct {
 			inPath    string
 			wantFiles []file
-			wantErr   string
 		}
 	)
 
@@ -104,8 +103,7 @@ func TestFiles(t *testing.T) {
 		}},
 
 		findPaths: []testFindPath{{
-			inPath:  "nothing",
-			wantErr: "not found",
+			inPath: "nothing",
 		}, {
 			inPath: "weird",
 			wantFiles: []file{
@@ -282,7 +280,7 @@ func TestFiles(t *testing.T) {
 	})
 	for _, tt := range tests {
 		t.Run("", func(t *testing.T) {
-			var files protoregistry.Files
+			var files preg.Files
 			for i, tc := range tt.files {
 				gotErr := files.RegisterFile(tc.inFile)
 				if ((gotErr == nil) != (tc.wantErr == "")) || !strings.Contains(fmt.Sprint(gotErr), tc.wantErr) {
@@ -302,7 +300,7 @@ func TestFiles(t *testing.T) {
 				var gotFiles []file
 				var gotCnt int
 				wantCnt := files.NumFilesByPackage(tc.inPkg)
-				files.RangeFilesByPackage(tc.inPkg, func(fd protoreflect.FileDescriptor) bool {
+				files.RangeFilesByPackage(tc.inPkg, func(fd pref.FileDescriptor) bool {
 					gotFiles = append(gotFiles, file{fd.Path(), fd.Package()})
 					gotCnt++
 					return true
@@ -317,12 +315,8 @@ func TestFiles(t *testing.T) {
 
 			for _, tc := range tt.findPaths {
 				var gotFiles []file
-				fd, gotErr := files.FindFileByPath(tc.inPath)
-				if gotErr == nil {
+				if fd, err := files.FindFileByPath(tc.inPath); err == nil {
 					gotFiles = append(gotFiles, file{fd.Path(), fd.Package()})
-				}
-				if ((gotErr == nil) != (tc.wantErr == "")) || !strings.Contains(fmt.Sprint(gotErr), tc.wantErr) {
-					t.Errorf("FindFileByPath(%v) = %v, want %v", tc.inPath, gotErr, tc.wantErr)
 				}
 				if diff := cmp.Diff(tc.wantFiles, gotFiles, sortFiles); diff != "" {
 					t.Errorf("FindFileByPath(%v) mismatch (-want +got):\n%v", tc.inPath, diff)
@@ -337,7 +331,7 @@ func TestTypes(t *testing.T) {
 	et1 := pimpl.Export{}.EnumTypeOf(testpb.Enum1_ONE)
 	xt1 := testpb.E_StringField
 	xt2 := testpb.E_Message4_MessageField
-	registry := new(protoregistry.Types)
+	registry := new(preg.Types)
 	if err := registry.RegisterMessage(mt1); err != nil {
 		t.Fatalf("registry.RegisterMessage(%v) returns unexpected error: %v", mt1.Descriptor().FullName(), err)
 	}
@@ -354,7 +348,7 @@ func TestTypes(t *testing.T) {
 	t.Run("FindMessageByName", func(t *testing.T) {
 		tests := []struct {
 			name         string
-			messageType  protoreflect.MessageType
+			messageType  pref.MessageType
 			wantErr      bool
 			wantNotFound bool
 		}{{
@@ -375,13 +369,13 @@ func TestTypes(t *testing.T) {
 			wantErr: true,
 		}}
 		for _, tc := range tests {
-			got, err := registry.FindMessageByName(protoreflect.FullName(tc.name))
+			got, err := registry.FindMessageByName(pref.FullName(tc.name))
 			gotErr := err != nil
 			if gotErr != tc.wantErr {
 				t.Errorf("FindMessageByName(%v) = (_, %v), want error? %t", tc.name, err, tc.wantErr)
 				continue
 			}
-			if tc.wantNotFound && err != protoregistry.NotFound {
+			if tc.wantNotFound && err != preg.NotFound {
 				t.Errorf("FindMessageByName(%v) got error: %v, want NotFound error", tc.name, err)
 				continue
 			}
@@ -394,7 +388,7 @@ func TestTypes(t *testing.T) {
 	t.Run("FindMessageByURL", func(t *testing.T) {
 		tests := []struct {
 			name         string
-			messageType  protoreflect.MessageType
+			messageType  pref.MessageType
 			wantErr      bool
 			wantNotFound bool
 		}{{
@@ -415,7 +409,7 @@ func TestTypes(t *testing.T) {
 				t.Errorf("FindMessageByURL(%v) = (_, %v), want error? %t", tc.name, err, tc.wantErr)
 				continue
 			}
-			if tc.wantNotFound && err != protoregistry.NotFound {
+			if tc.wantNotFound && err != preg.NotFound {
 				t.Errorf("FindMessageByURL(%v) got error: %v, want NotFound error", tc.name, err)
 				continue
 			}
@@ -428,7 +422,7 @@ func TestTypes(t *testing.T) {
 	t.Run("FindEnumByName", func(t *testing.T) {
 		tests := []struct {
 			name         string
-			enumType     protoreflect.EnumType
+			enumType     pref.EnumType
 			wantErr      bool
 			wantNotFound bool
 		}{{
@@ -443,13 +437,13 @@ func TestTypes(t *testing.T) {
 			wantErr: true,
 		}}
 		for _, tc := range tests {
-			got, err := registry.FindEnumByName(protoreflect.FullName(tc.name))
+			got, err := registry.FindEnumByName(pref.FullName(tc.name))
 			gotErr := err != nil
 			if gotErr != tc.wantErr {
 				t.Errorf("FindEnumByName(%v) = (_, %v), want error? %t", tc.name, err, tc.wantErr)
 				continue
 			}
-			if tc.wantNotFound && err != protoregistry.NotFound {
+			if tc.wantNotFound && err != preg.NotFound {
 				t.Errorf("FindEnumByName(%v) got error: %v, want NotFound error", tc.name, err)
 				continue
 			}
@@ -462,7 +456,7 @@ func TestTypes(t *testing.T) {
 	t.Run("FindExtensionByName", func(t *testing.T) {
 		tests := []struct {
 			name          string
-			extensionType protoreflect.ExtensionType
+			extensionType pref.ExtensionType
 			wantErr       bool
 			wantNotFound  bool
 		}{{
@@ -480,13 +474,13 @@ func TestTypes(t *testing.T) {
 			wantErr: true,
 		}}
 		for _, tc := range tests {
-			got, err := registry.FindExtensionByName(protoreflect.FullName(tc.name))
+			got, err := registry.FindExtensionByName(pref.FullName(tc.name))
 			gotErr := err != nil
 			if gotErr != tc.wantErr {
 				t.Errorf("FindExtensionByName(%v) = (_, %v), want error? %t", tc.name, err, tc.wantErr)
 				continue
 			}
-			if tc.wantNotFound && err != protoregistry.NotFound {
+			if tc.wantNotFound && err != preg.NotFound {
 				t.Errorf("FindExtensionByName(%v) got error: %v, want NotFound error", tc.name, err)
 				continue
 			}
@@ -500,7 +494,7 @@ func TestTypes(t *testing.T) {
 		tests := []struct {
 			parent        string
 			number        int32
-			extensionType protoreflect.ExtensionType
+			extensionType pref.ExtensionType
 			wantErr       bool
 			wantNotFound  bool
 		}{{
@@ -538,13 +532,13 @@ func TestTypes(t *testing.T) {
 			wantNotFound: true,
 		}}
 		for _, tc := range tests {
-			got, err := registry.FindExtensionByNumber(protoreflect.FullName(tc.parent), protoreflect.FieldNumber(tc.number))
+			got, err := registry.FindExtensionByNumber(pref.FullName(tc.parent), pref.FieldNumber(tc.number))
 			gotErr := err != nil
 			if gotErr != tc.wantErr {
 				t.Errorf("FindExtensionByNumber(%v, %d) = (_, %v), want error? %t", tc.parent, tc.number, err, tc.wantErr)
 				continue
 			}
-			if tc.wantNotFound && err != protoregistry.NotFound {
+			if tc.wantNotFound && err != preg.NotFound {
 				t.Errorf("FindExtensionByNumber(%v, %d) got error %v, want NotFound error", tc.parent, tc.number, err)
 				continue
 			}
@@ -555,34 +549,34 @@ func TestTypes(t *testing.T) {
 	})
 
 	sortTypes := cmp.Options{
-		cmpopts.SortSlices(func(x, y protoreflect.EnumType) bool {
+		cmpopts.SortSlices(func(x, y pref.EnumType) bool {
 			return x.Descriptor().FullName() < y.Descriptor().FullName()
 		}),
-		cmpopts.SortSlices(func(x, y protoreflect.MessageType) bool {
+		cmpopts.SortSlices(func(x, y pref.MessageType) bool {
 			return x.Descriptor().FullName() < y.Descriptor().FullName()
 		}),
-		cmpopts.SortSlices(func(x, y protoreflect.ExtensionType) bool {
+		cmpopts.SortSlices(func(x, y pref.ExtensionType) bool {
 			return x.TypeDescriptor().FullName() < y.TypeDescriptor().FullName()
 		}),
 	}
 	compare := cmp.Options{
-		cmp.Comparer(func(x, y protoreflect.EnumType) bool {
+		cmp.Comparer(func(x, y pref.EnumType) bool {
 			return x == y
 		}),
-		cmp.Comparer(func(x, y protoreflect.ExtensionType) bool {
+		cmp.Comparer(func(x, y pref.ExtensionType) bool {
 			return x == y
 		}),
-		cmp.Comparer(func(x, y protoreflect.MessageType) bool {
+		cmp.Comparer(func(x, y pref.MessageType) bool {
 			return x == y
 		}),
 	}
 
 	t.Run("RangeEnums", func(t *testing.T) {
-		want := []protoreflect.EnumType{et1}
-		var got []protoreflect.EnumType
+		want := []pref.EnumType{et1}
+		var got []pref.EnumType
 		var gotCnt int
 		wantCnt := registry.NumEnums()
-		registry.RangeEnums(func(et protoreflect.EnumType) bool {
+		registry.RangeEnums(func(et pref.EnumType) bool {
 			got = append(got, et)
 			gotCnt++
 			return true
@@ -597,11 +591,11 @@ func TestTypes(t *testing.T) {
 	})
 
 	t.Run("RangeMessages", func(t *testing.T) {
-		want := []protoreflect.MessageType{mt1}
-		var got []protoreflect.MessageType
+		want := []pref.MessageType{mt1}
+		var got []pref.MessageType
 		var gotCnt int
 		wantCnt := registry.NumMessages()
-		registry.RangeMessages(func(mt protoreflect.MessageType) bool {
+		registry.RangeMessages(func(mt pref.MessageType) bool {
 			got = append(got, mt)
 			gotCnt++
 			return true
@@ -616,11 +610,11 @@ func TestTypes(t *testing.T) {
 	})
 
 	t.Run("RangeExtensions", func(t *testing.T) {
-		want := []protoreflect.ExtensionType{xt1, xt2}
-		var got []protoreflect.ExtensionType
+		want := []pref.ExtensionType{xt1, xt2}
+		var got []pref.ExtensionType
 		var gotCnt int
 		wantCnt := registry.NumExtensions()
-		registry.RangeExtensions(func(xt protoreflect.ExtensionType) bool {
+		registry.RangeExtensions(func(xt pref.ExtensionType) bool {
 			got = append(got, xt)
 			gotCnt++
 			return true
@@ -635,11 +629,11 @@ func TestTypes(t *testing.T) {
 	})
 
 	t.Run("RangeExtensionsByMessage", func(t *testing.T) {
-		want := []protoreflect.ExtensionType{xt1, xt2}
-		var got []protoreflect.ExtensionType
+		want := []pref.ExtensionType{xt1, xt2}
+		var got []pref.ExtensionType
 		var gotCnt int
 		wantCnt := registry.NumExtensionsByMessage("testprotos.Message1")
-		registry.RangeExtensionsByMessage("testprotos.Message1", func(xt protoreflect.ExtensionType) bool {
+		registry.RangeExtensionsByMessage("testprotos.Message1", func(xt pref.ExtensionType) bool {
 			got = append(got, xt)
 			gotCnt++
 			return true

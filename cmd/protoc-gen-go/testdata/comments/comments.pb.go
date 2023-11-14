@@ -11,6 +11,7 @@ package comments
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoiface "google.golang.org/protobuf/runtime/protoiface"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
@@ -87,7 +88,6 @@ type Message1 struct {
 	// COMMENT: Oneof1A.Leading
 	//
 	// Types that are assignable to Oneof1A:
-	//
 	//	*Message1_Oneof1AField1
 	Oneof1A isMessage1_Oneof1A `protobuf_oneof:"Oneof1a"`
 }
@@ -122,6 +122,15 @@ func (x *Message1) ProtoReflect() protoreflect.Message {
 // Deprecated: Use Message1.ProtoReflect.Descriptor instead.
 func (*Message1) Descriptor() ([]byte, []int) {
 	return file_cmd_protoc_gen_go_testdata_comments_comments_proto_rawDescGZIP(), []int{0}
+}
+
+var extRange_Message1 = []protoiface.ExtensionRangeV1{
+	{Start: 100, End: 536870911},
+}
+
+// Deprecated: Use Message1.ProtoReflect.Descriptor.ExtensionRanges instead.
+func (*Message1) ExtensionRangeArray() []protoiface.ExtensionRangeV1 {
+	return extRange_Message1
 }
 
 func (x *Message1) GetField1A() string {

@@ -3,7 +3,6 @@
 // license that can be found in the LICENSE file.
 
 // The protoreflect tag disables fast-path methods, including legacy ones.
-//go:build !protoreflect
 // +build !protoreflect
 
 package proto_test
